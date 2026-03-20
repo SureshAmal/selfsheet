@@ -24,7 +24,7 @@ interface TrackerGridProps {
   currentDate: Date;
   protocols: Protocol[];
   logs: ProtocolLog[];
-  onUpdate: () => void;
+  onUpdate: () => void | Promise<void>;
 }
 
 export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: TrackerGridProps) {
@@ -80,8 +80,9 @@ export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: 
 
     try {
       await toggleLogStatus(protocolId, dateStr, log?.status);
-      onUpdate();
+      await onUpdate();
     } catch {
+      // Revert on error
       setOptimisticLogs(prev => { const m = new Map(prev); m.delete(cellKey); return m; });
     } finally {
       setLoadingCells(prev => { const s = new Set(prev); s.delete(cellKey); return s; });
