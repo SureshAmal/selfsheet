@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { getDaysInMonth, format, isAfter, parseISO, startOfDay } from 'date-fns';
-import { toggleLogStatus, addProtocol, deleteProtocol, updateProtocolName } from '@/app/actions';
-import { Plus, X } from 'lucide-react';
+import { toggleLogStatus, addProtocol, deleteProtocol, updateProtocolName, reorderProtocols } from '@/app/actions';
+import { Plus, X, GripVertical } from 'lucide-react';
 import { Modal } from './Modal';
 
 interface Protocol {
   id: string;
   name: string;
+  order: number;
 }
 
 interface ProtocolLog {
@@ -33,6 +34,13 @@ export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: 
   
   const [editingProtocolId, setEditingProtocolId] = useState<string | null>(null);
   const [editingProtocolName, setEditingProtocolName] = useState('');
+  const [loadingCells, setLoadingCells] = useState<Set<string>>(new Set());
+  const [optimisticLogs, setOptimisticLogs] = useState<Map<string, boolean>>(new Map());
+
+  // Drag state
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const dragGhostRef = useRef<HTMLDivElement>(null);
 
   const daysInMonth = getDaysInMonth(currentDate);
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
@@ -44,6 +52,13 @@ export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: 
     return logs.find(l => l.protocolId === protocolId && l.date === dateStr);
   };
 
+  const getCellStatus = (protocolId: string, day: number): boolean => {
+    const cellKey = `${protocolId}-${day}`;
+    if (optimisticLogs.has(cellKey)) return optimisticLogs.get(cellKey)!;
+    const log = getLogForDay(protocolId, day);
+    return log?.status ?? false;
+  };
+
   const isFutureDay = (day: number) => {
     const cellDateStr = `${monthPrefix}-${day.toString().padStart(2, '0')}`;
     const cellDate = parseISO(cellDateStr);
@@ -51,11 +66,27 @@ export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: 
   };
 
   const handleToggle = async (protocolId: string, day: number) => {
-    if (isFutureDay(day)) return; // Prevent clicking future days
+    if (isFutureDay(day)) return;
+    const cellKey = `${protocolId}-${day}`;
+    if (loadingCells.has(cellKey)) return;
+
     const dateStr = `${monthPrefix}-${day.toString().padStart(2, '0')}`;
     const log = getLogForDay(protocolId, day);
-    await toggleLogStatus(protocolId, dateStr, log?.status);
-    onUpdate();
+    const currentStatus = log?.status ?? false;
+    const newStatus = !currentStatus;
+
+    setOptimisticLogs(prev => new Map(prev).set(cellKey, newStatus));
+    setLoadingCells(prev => new Set(prev).add(cellKey));
+
+    try {
+      await toggleLogStatus(protocolId, dateStr, log?.status);
+      onUpdate();
+    } catch {
+      setOptimisticLogs(prev => { const m = new Map(prev); m.delete(cellKey); return m; });
+    } finally {
+      setLoadingCells(prev => { const s = new Set(prev); s.delete(cellKey); return s; });
+      setOptimisticLogs(prev => { const m = new Map(prev); m.delete(cellKey); return m; });
+    }
   };
 
   const handleAddProtocol = async (e: React.FormEvent) => {
@@ -96,8 +127,56 @@ export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: 
     }
   };
 
+  // --- Drag and Drop ---
+  const handleDragStart = (e: React.DragEvent, protocolId: string) => {
+    setDraggedId(protocolId);
+    e.dataTransfer.effectAllowed = 'move';
+
+    // Create custom ghost
+    if (dragGhostRef.current) {
+      const protocol = protocols.find(p => p.id === protocolId);
+      dragGhostRef.current.textContent = protocol?.name || '';
+      dragGhostRef.current.style.display = 'block';
+      e.dataTransfer.setDragImage(dragGhostRef.current, 16, 16);
+      // Hide ghost after drag starts
+      requestAnimationFrame(() => {
+        if (dragGhostRef.current) dragGhostRef.current.style.display = 'none';
+      });
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, protocolId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (protocolId !== draggedId) {
+      setDragOverId(protocolId);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverId(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    setDragOverId(null);
+    if (draggedId && draggedId !== targetId) {
+      await reorderProtocols(draggedId, targetId);
+      onUpdate();
+    }
+    setDraggedId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
   return (
     <>
+      {/* Custom drag ghost */}
+      <div ref={dragGhostRef} className="drag-ghost" />
+
       <div className="tracker-grid-wrapper glass-panel">
         <table className="tracker-table">
           <thead>
@@ -109,10 +188,22 @@ export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: 
             </tr>
           </thead>
           <tbody>
-            {protocols.map(p => (
-              <tr key={p.id}>
+            {protocols.map((p, index) => (
+              <tr
+                key={p.id}
+                className={`protocol-row ${draggedId === p.id ? 'dragging' : ''} ${dragOverId === p.id ? 'drag-over' : ''}`}
+                draggable
+                onDragStart={(e) => handleDragStart(e, p.id)}
+                onDragOver={(e) => handleDragOver(e, p.id)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, p.id)}
+                onDragEnd={handleDragEnd}
+              >
                 <td className="protocol-name">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '8px', minHeight: '32px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', paddingRight: '8px', minHeight: '32px', gap: '4px' }}>
+                    <span className="drag-handle" title="Drag to reorder">
+                      <GripVertical size={14} />
+                    </span>
                     {editingProtocolId === p.id ? (
                       <input 
                         type="text" 
@@ -142,15 +233,17 @@ export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: 
                   </div>
                 </td>
                 {daysArray.map(day => {
-                  const log = getLogForDay(p.id, day);
+                  const cellKey = `${p.id}-${day}`;
+                  const status = getCellStatus(p.id, day);
                   const future = isFutureDay(day);
+                  const isLoading = loadingCells.has(cellKey);
                   return (
                     <td 
                       key={day} 
-                      className={`day-cell ${log?.status ? 'active' : ''} ${future ? 'disabled' : ''}`}
+                      className={`day-cell ${status ? 'active' : ''} ${future ? 'disabled' : ''} ${isLoading ? 'loading' : ''}`}
                       onClick={() => handleToggle(p.id, day)}
                     >
-                      {log?.status ? '✓' : ''}
+                      {isLoading ? <span className="cell-spinner" /> : status ? '✓' : ''}
                     </td>
                   );
                 })}

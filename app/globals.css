@@ -156,7 +156,32 @@ button { cursor: pointer; border: none; background: none; }
   font-weight: 500; background: var(--bg-secondary); 
 }
 .day-col-header { width: 24px; color: var(--text-secondary); font-size: 0.75rem; background: var(--bg-secondary); }
-.protocol-name { text-align: left; padding-left: var(--spacing-md); color: var(--text-primary); font-size: 0.85rem; white-space: nowrap; }
+.protocol-name { text-align: left; padding-left: var(--spacing-sm); color: var(--text-primary); font-size: 0.85rem; white-space: nowrap; }
+
+/* Drag and drop */
+.drag-handle {
+  cursor: grab; color: var(--text-secondary); opacity: 0.4;
+  display: flex; align-items: center; flex-shrink: 0;
+  padding: 2px 0;
+}
+.drag-handle:hover { opacity: 1; }
+.drag-handle:active { cursor: grabbing; }
+
+.protocol-row { transition: background-color 0.15s, opacity 0.15s; }
+.protocol-row.dragging { opacity: 0.35; }
+.protocol-row.drag-over td { 
+  border-top: 2px solid var(--accent-color) !important;
+}
+
+.drag-ghost {
+  position: fixed; top: -100px; left: -100px;
+  display: none; padding: 6px 16px;
+  background: var(--bg-primary); border: 1px solid var(--accent-color);
+  border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 500;
+  color: var(--text-primary); white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999;
+  pointer-events: none;
+}
 
 .day-cell { cursor: pointer; user-select: none; transition: background-color 0.2s; }
 .day-cell:not(.active):not(.disabled) { background-color: rgba(239, 68, 68, 0.15); }
@@ -164,6 +189,22 @@ button { cursor: pointer; border: none; background: none; }
 .day-cell.active { color: var(--text-primary); background-color: rgba(34, 197, 94, 0.2); font-weight: bold; }
 .day-cell.active:hover:not(.disabled) { background-color: rgba(34, 197, 94, 0.3); }
 .day-cell.disabled { cursor: not-allowed; background-color: var(--bg-secondary); opacity: 0.5; }
+.day-cell.loading { pointer-events: none; animation: cell-pulse 0.6s ease-in-out infinite alternate; }
+
+.cell-spinner {
+  display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--accent-color);
+  animation: spinner-pulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes cell-pulse {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+@keyframes spinner-pulse {
+  from { transform: scale(0.5); opacity: 0.4; }
+  to { transform: scale(1); opacity: 1; }
+}
 
 .add-protocol-cell { text-align: left; padding: var(--spacing-xs) var(--spacing-md); background: var(--bg-primary); cursor: pointer; }
 .add-protocol-cell:hover { background: var(--bg-secondary); }

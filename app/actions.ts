@@ -2,7 +2,7 @@
 
 import { db } from '@/db';
 import { usersTable, protocolsTable, protocolLogsTable } from '@/db/schema';
-import { eq, and, like, inArray } from 'drizzle-orm';
+import { eq, and, like, inArray, asc, count, max } from 'drizzle-orm';
 import { createSession, deleteSession, getSession } from './lib/session';
 
 // --- USER ACTIONS ---
@@ -63,7 +63,9 @@ export async function logoutUser() {
 // --- PROTOCOL ACTIONS ---
 export async function getUserProtocols(userId: string) {
   try {
-    return await db.select().from(protocolsTable).where(eq(protocolsTable.userId, userId));
+    return await db.select().from(protocolsTable)
+      .where(eq(protocolsTable.userId, userId))
+      .orderBy(asc(protocolsTable.order));
   } catch (error) {
     console.error('Error fetching protocols:', error);
     return [];
@@ -72,7 +74,12 @@ export async function getUserProtocols(userId: string) {
 
 export async function addProtocol(userId: string, name: string) {
   try {
-    const newProtocol = await db.insert(protocolsTable).values({ userId, name }).returning();
+    // Get the current max order for this user
+    const result = await db.select({ maxOrder: max(protocolsTable.order) })
+      .from(protocolsTable)
+      .where(eq(protocolsTable.userId, userId));
+    const nextOrder = (result[0]?.maxOrder ?? -1) + 1;
+    const newProtocol = await db.insert(protocolsTable).values({ userId, name, order: nextOrder }).returning();
     return newProtocol[0];
   } catch (error) {
     console.error('Error adding protocol:', error);
@@ -100,6 +107,23 @@ export async function updateProtocolName(protocolId: string, newName: string) {
   } catch (error) {
     console.error('Error updating protocol name:', error);
     throw new Error('Failed to update protocol name');
+  }
+}
+
+export async function reorderProtocols(protocolIdA: string, protocolIdB: string) {
+  try {
+    // Fetch both protocols
+    const [a] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolIdA));
+    const [b] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolIdB));
+    if (!a || !b) throw new Error('Protocol not found');
+
+    // Swap their order values
+    await db.update(protocolsTable).set({ order: b.order }).where(eq(protocolsTable.id, protocolIdA));
+    await db.update(protocolsTable).set({ order: a.order }).where(eq(protocolsTable.id, protocolIdB));
+    return { success: true };
+  } catch (error) {
+    console.error('Error reordering protocols:', error);
+    throw new Error('Failed to reorder protocols');
   }
 }
 

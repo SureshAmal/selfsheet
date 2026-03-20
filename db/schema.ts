@@ -12,6 +12,7 @@ export const protocolsTable = pgTable('protocols', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').references(() => usersTable.id, { onDelete: 'cascade' }).notNull(),
   name: text('name').notNull(),
+  order: integer('order').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
