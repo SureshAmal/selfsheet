@@ -28,7 +28,7 @@ export default function LoginPage() {
   return (
     <div className="welcome-screen">
       <h1>SelfSheet Login</h1>
-      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '300px' }}>
+      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: '300px' }}>
         <input 
           type="text" 
           value={username} 

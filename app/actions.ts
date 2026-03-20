@@ -32,9 +32,9 @@ export async function loginUser(username: string, passwordHash: string) {
     const user = { id: dbUser.id, username: dbUser.username, theme: dbUser.theme };
     await createSession(user);
     return user;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in loginUser:', error);
-    throw new Error('Invalid login');
+    throw new Error(error.message || 'Invalid login');
   }
 }
 

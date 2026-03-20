@@ -28,7 +28,7 @@ export default function RegisterPage() {
   return (
     <div className="welcome-screen">
       <h1>Create Account</h1>
-      <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '300px' }}>
+      <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: '300px' }}>
         <input 
           type="text" 
           value={username} 
