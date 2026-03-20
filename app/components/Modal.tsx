@@ -40,10 +40,21 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
 
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
-      // Auto-focus first input if exists
+      // Auto-focus logic
       setTimeout(() => {
-        const firstInput = modalRef.current?.querySelector('input');
-        if (firstInput) firstInput.focus();
+        if (modalRef.current) {
+          const autoFocusEl = modalRef.current.querySelector<HTMLElement>('[autofocus]');
+          if (autoFocusEl) {
+            autoFocusEl.focus();
+            return;
+          }
+          const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusable.length > 0) {
+            focusable[0].focus();
+          }
+        }
       }, 10);
       document.body.style.overflow = 'hidden';
     } else {

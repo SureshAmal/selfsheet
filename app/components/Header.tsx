@@ -32,14 +32,22 @@ export function Header() {
   };
 
   const handleToggle = () => {
+    if (!isThemeOpen) {
+      setFocusedIndex(themes.indexOf(theme as any));
+    } else {
+      setFocusedIndex(-1);
+    }
     setIsThemeOpen(!isThemeOpen);
-    setFocusedIndex(-1);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      handleToggle();
+      if (isThemeOpen && focusedIndex >= 0) {
+        selectOption(themes[focusedIndex]);
+      } else {
+        handleToggle();
+      }
     } else if (e.key === 'Escape') {
       setIsThemeOpen(false);
     } else if (isThemeOpen) {

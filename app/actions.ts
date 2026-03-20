@@ -76,6 +76,19 @@ export async function deleteProtocol(protocolId: string) {
   }
 }
 
+export async function updateProtocolName(protocolId: string, newName: string) {
+  try {
+    const updated = await db.update(protocolsTable)
+      .set({ name: newName })
+      .where(eq(protocolsTable.id, protocolId))
+      .returning();
+    return updated[0];
+  } catch (error) {
+    console.error('Error updating protocol name:', error);
+    throw new Error('Failed to update protocol name');
+  }
+}
+
 // --- LOG ACTIONS ---
 export async function getLogsForMonth(userId: string, monthPrefix: string) {
   // monthPrefix like '2026-03%'

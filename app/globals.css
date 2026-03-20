@@ -196,7 +196,7 @@ button { cursor: pointer; border: none; background: none; }
 }
 .modal-content {
   background-color: var(--panel-bg); border: 1px solid var(--border-color);
-  border-radius: var(--radius-md); width: 90%; max-width: 350px;
+  border-radius: var(--radius-md); width: 90%; max-width: 450px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); padding: var(--spacing-lg);
 }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); }

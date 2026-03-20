@@ -5,6 +5,7 @@ import { Header } from './components/Header';
 import { MonthSelector } from './components/MonthSelector';
 import { TrackerGrid } from './components/TrackerGrid';
 import { AnalysisChart } from './components/AnalysisChart';
+import { Modal } from './components/Modal';
 import { useUser } from './context/UserContext';
 import { getUserProtocols, getLogsForMonth, bulkInsertLogs } from './actions';
 import { format, getDaysInMonth } from 'date-fns';
@@ -18,6 +19,8 @@ export default function Home() {
   const [protocols, setProtocols] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [importData, setImportData] = useState<{ protocols: string[], logs: { protocolName: string, day: number, status: boolean }[], month: string } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   
   const chartRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -83,19 +86,35 @@ export default function Home() {
             });
             const data = await res.json();
             
-            if (data.protocols && confirm(`Parsed ${data.protocols.length} protocols and ${data.logs?.length || 0} logs for ${data.month}. Import?`)) {
-                await bulkInsertLogs(user.id, format(currentDate, 'yyyy-MM'), data.protocols, data.logs || []);
-                fetchTrackerData();
+            if (data.error || !data.protocols) {
+                setImportError(data.error || 'Failed to parse required data from image.');
+            } else {
+                setImportData({
+                    protocols: data.protocols,
+                    logs: data.logs || [],
+                    month: data.month
+                });
             }
         } catch (error) {
             console.error(error);
-            alert('Failed to parse image');
+            setImportError('Failed to parse image. Please try again.');
         } finally {
             setIsImporting(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleConfirmImport = async () => {
+    if (!user || !importData) return;
+    try {
+        await bulkInsertLogs(user.id, format(currentDate, 'yyyy-MM'), importData.protocols, importData.logs);
+        fetchTrackerData();
+        setImportData(null);
+    } catch (error) {
+        setImportError('Failed to save imported logs.');
+    }
   };
 
   if (isLoading) {
@@ -150,6 +169,46 @@ export default function Home() {
               totalProtocols={protocols.length}
             />
           </div>
+
+          <Modal isOpen={!!importError} onClose={() => setImportError(null)} title="Error">
+            <p style={{ marginBottom: 'var(--spacing-md)' }}>{importError}</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setImportError(null)} className="btn-base">OK</button>
+            </div>
+          </Modal>
+
+          <Modal isOpen={!!importData} onClose={() => setImportData(null)} title="Import Preview">
+            {importData && (
+              <div style={{ maxHeight: '60vh', overflowY: 'auto', marginBottom: 'var(--spacing-md)' }}>
+                <p style={{ marginBottom: 'var(--spacing-md)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  Parsed <strong>{importData.protocols.length}</strong> protocols and <strong>{importData.logs.length}</strong> logs.
+                </p>
+                <div className="tracker-grid-wrapper">
+                  <table className="tracker-table" style={{ fontSize: '0.8rem', minWidth: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th className="protocol-col-header" style={{ width: 'auto' }}>Protocol</th>
+                        <th style={{ padding: '0 8px' }}>Logs</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importData.protocols.map(p => (
+                        <tr key={p}>
+                          <td className="protocol-name">{p}</td>
+                          <td>{importData.logs.filter(l => l.protocolName === p && l.status).length} done</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button onClick={() => setImportData(null)} className="btn-secondary">Cancel</button>
+              <button onClick={handleConfirmImport} className="btn-base">Confirm Import</button>
+            </div>
+          </Modal>
+
         </div>
       ) : (
         <div className="welcome-screen">

@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { getDaysInMonth, format } from 'date-fns';
+import { getDaysInMonth, format, isAfter, parseISO, startOfDay } from 'date-fns';
 
 interface ProtocolLog {
   id: string;
@@ -23,9 +23,17 @@ export function AnalysisChart({ currentDate, logs, totalProtocols }: AnalysisCha
     const monthPrefix = format(currentDate, 'yyyy-MM');
     const dayData = [];
 
+    const today = startOfDay(new Date());
+
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${monthPrefix}-${day.toString().padStart(2, '0')}`;
-      const completedCount = logs.filter(l => l.date === dateStr && l.status).length;
+      const cellDate = parseISO(dateStr);
+      
+      let completedCount: number | null = null;
+      if (!isAfter(cellDate, today)) {
+        completedCount = logs.filter(l => l.date === dateStr && l.status).length;
+      }
+
       dayData.push({
         day: day.toString(),
         completed: completedCount

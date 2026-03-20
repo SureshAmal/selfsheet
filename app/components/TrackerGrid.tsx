@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { getDaysInMonth, format, isAfter, parseISO, startOfDay } from 'date-fns';
-import { toggleLogStatus, addProtocol, deleteProtocol } from '@/app/actions';
+import { toggleLogStatus, addProtocol, deleteProtocol, updateProtocolName } from '@/app/actions';
 import { Plus, X } from 'lucide-react';
 import { Modal } from './Modal';
 
@@ -29,7 +29,11 @@ interface TrackerGridProps {
 export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: TrackerGridProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProtocolName, setNewProtocolName] = useState('');
+  const [protocolToDelete, setProtocolToDelete] = useState<{ id: string, name: string } | null>(null);
   
+  const [editingProtocolId, setEditingProtocolId] = useState<string | null>(null);
+  const [editingProtocolName, setEditingProtocolName] = useState('');
+
   const daysInMonth = getDaysInMonth(currentDate);
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const monthPrefix = format(currentDate, 'yyyy-MM');
@@ -64,10 +68,31 @@ export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: 
     }
   };
 
-  const handleDeleteProtocol = async (protocolId: string, name: string) => {
-    if (confirm(`Are you sure you want to delete "${name}"? All related logs will be removed.`)) {
-      await deleteProtocol(protocolId);
+  const confirmDeleteProtocol = (protocolId: string, name: string) => {
+    setProtocolToDelete({ id: protocolId, name });
+  };
+
+  const handleDeleteProtocol = async () => {
+    if (protocolToDelete) {
+      await deleteProtocol(protocolToDelete.id);
+      setProtocolToDelete(null);
       onUpdate();
+    }
+  };
+
+  const handleRenameSubmit = async (protocolId: string) => {
+    if (editingProtocolName.trim() && editingProtocolName !== protocols.find(p => p.id === protocolId)?.name) {
+      await updateProtocolName(protocolId, editingProtocolName.trim());
+      onUpdate();
+    }
+    setEditingProtocolId(null);
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent, protocolId: string) => {
+    if (e.key === 'Enter') {
+      handleRenameSubmit(protocolId);
+    } else if (e.key === 'Escape') {
+      setEditingProtocolId(null);
     }
   };
 
@@ -87,11 +112,29 @@ export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: 
             {protocols.map(p => (
               <tr key={p.id}>
                 <td className="protocol-name">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '8px' }}>
-                    <span>{p.name}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '8px', minHeight: '32px' }}>
+                    {editingProtocolId === p.id ? (
+                      <input 
+                        type="text" 
+                        value={editingProtocolName}
+                        onChange={(e) => setEditingProtocolName(e.target.value)}
+                        onBlur={() => handleRenameSubmit(p.id)}
+                        onKeyDown={(e) => handleRenameKeyDown(e, p.id)}
+                        autoFocus
+                        style={{ width: '80%', padding: '2px 4px', fontSize: '0.85rem', border: '1px solid var(--border-color)', borderRadius: '2px', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    ) : (
+                      <span 
+                        onClick={() => { setEditingProtocolId(p.id); setEditingProtocolName(p.name); }} 
+                        style={{ cursor: 'text', flex: 1, padding: '2px 0' }}
+                        title="Click to rename"
+                      >
+                        {p.name}
+                      </span>
+                    )}
                     <button 
                       className="icon-btn delete-btn" 
-                      onClick={() => handleDeleteProtocol(p.id, p.name)}
+                      onClick={() => confirmDeleteProtocol(p.id, p.name)}
                       title="Delete Protocol"
                     >
                       <X size={14} />
@@ -138,6 +181,17 @@ export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: 
             <button type="submit" className="btn-base">Add Protocol</button>
           </div>
         </form>
+      </Modal>
+
+      <Modal isOpen={!!protocolToDelete} onClose={() => setProtocolToDelete(null)} title="Confirm Deletion">
+        <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+          Are you sure you want to delete the protocol <strong>&quot;{protocolToDelete?.name}&quot;</strong>?<br/>
+          All related logs will be permanently removed.
+        </p>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <button type="button" autoFocus className="btn-secondary" onClick={() => setProtocolToDelete(null)}>Cancel</button>
+          <button type="button" className="btn-base" style={{ backgroundColor: '#ef4444', color: 'white' }} onClick={handleDeleteProtocol}>Delete Protocol</button>
+        </div>
       </Modal>
     </>
   );
