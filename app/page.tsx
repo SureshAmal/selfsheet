@@ -21,7 +21,7 @@ export default function Home() {
   const [isImporting, setIsImporting] = useState(false);
   const [importData, setImportData] = useState<{ protocols: string[], logs: { protocolName: string, day: number, status: boolean }[], month: string } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  
+
   const chartRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -29,7 +29,7 @@ export default function Home() {
     if (!user) return;
     const p = await getUserProtocols(user.id);
     setProtocols(p);
-    
+
     const monthPrefix = format(currentDate, 'yyyy-MM');
     const l = await getLogsForMonth(user.id, monthPrefix);
     setLogs(l);
@@ -43,7 +43,7 @@ export default function Home() {
     const daysInMonth = getDaysInMonth(currentDate);
     const monthPrefix = format(currentDate, 'yyyy-MM');
     const headerRow = ['Protocol', ...Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString())];
-    
+
     const dataRows = protocols.map(p => {
       const row = [p.name];
       for (let day = 1; day <= daysInMonth; day++) {
@@ -62,7 +62,9 @@ export default function Home() {
 
   const handleExportPNG = async () => {
     if (chartRef.current) {
-      const canvas = await html2canvas(chartRef.current);
+      const canvas = await html2canvas(chartRef.current, {
+        ignoreElements: (element) => element.classList.contains('ignore-capture')
+      });
       const link = document.createElement('a');
       link.download = `analysis_${format(currentDate, 'MMM_yyyy')}.png`;
       link.href = canvas.toDataURL();
@@ -74,34 +76,34 @@ export default function Home() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!user) return;
-    
+
     setIsImporting(true);
     const reader = new FileReader();
     reader.onload = async (event) => {
-        const base64 = event.target?.result;
-        try {
-            const res = await fetch('/api/extract-image', {
-                method: 'POST',
-                body: JSON.stringify({ image: base64 })
-            });
-            const data = await res.json();
-            
-            if (data.error || !data.protocols) {
-                setImportError(data.error || 'Failed to parse required data from image.');
-            } else {
-                setImportData({
-                    protocols: data.protocols,
-                    logs: data.logs || [],
-                    month: data.month
-                });
-            }
-        } catch (error) {
-            console.error(error);
-            setImportError('Failed to parse image. Please try again.');
-        } finally {
-            setIsImporting(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+      const base64 = event.target?.result;
+      try {
+        const res = await fetch('/api/extract-image', {
+          method: 'POST',
+          body: JSON.stringify({ image: base64 })
+        });
+        const data = await res.json();
+
+        if (data.error || !data.protocols) {
+          setImportError(data.error || 'Failed to parse required data from image.');
+        } else {
+          setImportData({
+            protocols: data.protocols,
+            logs: data.logs || [],
+            month: data.month
+          });
         }
+      } catch (error) {
+        console.error(error);
+        setImportError('Failed to parse image. Please try again.');
+      } finally {
+        setIsImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -109,11 +111,11 @@ export default function Home() {
   const handleConfirmImport = async () => {
     if (!user || !importData) return;
     try {
-        await bulkInsertLogs(user.id, format(currentDate, 'yyyy-MM'), importData.protocols, importData.logs);
-        fetchTrackerData();
-        setImportData(null);
+      await bulkInsertLogs(user.id, format(currentDate, 'yyyy-MM'), importData.protocols, importData.logs);
+      fetchTrackerData();
+      setImportData(null);
     } catch (error) {
-        setImportError('Failed to save imported logs.');
+      setImportError('Failed to save imported logs.');
     }
   };
 
@@ -124,17 +126,17 @@ export default function Home() {
   return (
     <main className="main-container">
       <Header />
-      
+
       {user ? (
         <div className="content-wrapper">
           <div className="controls-row">
-            <MonthSelector 
-              currentDate={currentDate} 
-              onChange={setCurrentDate} 
+            <MonthSelector
+              currentDate={currentDate}
+              onChange={setCurrentDate}
             />
             <div className="action-buttons" style={{ display: 'flex', gap: '8px' }}>
               <button onClick={handleExportSheet} className="btn-secondary">Export Sheet</button>
-              <button 
+              {/* <button 
                 onClick={() => fileInputRef.current?.click()} 
                 className="btn-secondary"
                 disabled={isImporting}
@@ -147,11 +149,11 @@ export default function Home() {
                 ref={fileInputRef} 
                 style={{ display: 'none' }} 
                 onChange={handleFileSelect} 
-              />
+              /> */}
             </div>
           </div>
 
-          <TrackerGrid 
+          <TrackerGrid
             userId={user.id}
             currentDate={currentDate}
             protocols={protocols}
@@ -160,10 +162,10 @@ export default function Home() {
           />
 
           <div ref={chartRef} style={{ position: 'relative' }}>
-            <div style={{ position: 'absolute', right: '1rem', top: '1rem', zIndex: 10 }}>
+            <div style={{ position: 'absolute', right: '1rem', top: '1rem', zIndex: 10 }} className="ignore-capture">
               <button onClick={handleExportPNG} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 8px' }}>Export PNG</button>
             </div>
-            <AnalysisChart 
+            <AnalysisChart
               currentDate={currentDate}
               logs={logs}
               totalProtocols={protocols.length}
@@ -215,8 +217,8 @@ export default function Home() {
           <h1>Welcome to SelfSheet</h1>
           <p>Login or Register to manage your protocols seamlessly.</p>
           <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-             <Link href="/login" className="btn-base" style={{ textDecoration: 'none' }}>Login</Link>
-             <Link href="/register" className="btn-secondary" style={{ textDecoration: 'none' }}>Register</Link>
+            <Link href="/login" className="btn-base" style={{ textDecoration: 'none' }}>Login</Link>
+            <Link href="/register" className="btn-secondary" style={{ textDecoration: 'none' }}>Register</Link>
           </div>
         </div>
       )}
