@@ -242,8 +242,10 @@ export function TrackerGrid({ userId, currentDate, protocols, logs, onUpdate }: 
                       key={day} 
                       className={`day-cell ${status ? 'active' : ''} ${future ? 'disabled' : ''} ${isLoading ? 'loading' : ''}`}
                       onClick={() => handleToggle(p.id, day)}
+                      style={{ position: 'relative' }}
                     >
-                      {isLoading ? <span className="cell-spinner" /> : status ? '✓' : ''}
+                      {status ? '✓' : ''}
+                      {isLoading && <span className="cell-spinner" style={{ position: 'absolute', top: '2px', right: '2px', width: '4px', height: '4px' }} />}
                     </td>
                   );
                 })}

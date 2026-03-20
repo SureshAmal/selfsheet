@@ -9,32 +9,32 @@ import { createSession, deleteSession, getSession } from './lib/session';
 export async function registerUser(username: string, passwordHash: string) {
   try {
     const existing = await db.select().from(usersTable).where(eq(usersTable.username, username));
-    if (existing.length > 0) throw new Error('Username already exists');
+    if (existing.length > 0) return { error: 'Username already exists' };
     
     const newUser = await db.insert(usersTable).values({ username, password: passwordHash }).returning();
     const user = { id: newUser[0].id, username: newUser[0].username, theme: newUser[0].theme };
     await createSession(user);
-    return user;
+    return { user };
   } catch (error) {
     console.error('Error in registerUser:', error);
-    throw new Error('Failed to register');
+    return { error: 'Failed to register' };
   }
 }
 
 export async function loginUser(username: string, passwordHash: string) {
   try {
     const existing = await db.select().from(usersTable).where(eq(usersTable.username, username));
-    if (existing.length === 0) throw new Error('User not found');
+    if (existing.length === 0) return { error: 'User not found' };
     
     const dbUser = existing[0];
-    if (dbUser.password !== passwordHash) throw new Error('Invalid credentials');
+    if (dbUser.password !== passwordHash) return { error: 'Invalid credentials' };
     
     const user = { id: dbUser.id, username: dbUser.username, theme: dbUser.theme };
     await createSession(user);
-    return user;
+    return { user };
   } catch (error: any) {
     console.error('Error in loginUser:', error);
-    throw new Error(error.message || 'Invalid login');
+    return { error: error.message || 'Invalid login' };
   }
 }
 

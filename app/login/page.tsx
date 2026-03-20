@@ -17,9 +17,15 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     try {
-      const user = await loginUser(username, password);
-      setUser(user);
-      router.push('/');
+      const result = await loginUser(username, password);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      if (result.user) {
+        setUser(result.user);
+        router.push('/');
+      }
     } catch (err: any) {
       setError(err.message || 'Login failed');
     }

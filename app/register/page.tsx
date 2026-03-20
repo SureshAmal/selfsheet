@@ -17,9 +17,15 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
     try {
-      const user = await registerUser(username, password);
-      setUser(user);
-      router.push('/');
+      const result = await registerUser(username, password);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      if (result.user) {
+        setUser(result.user);
+        router.push('/');
+      }
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     }
