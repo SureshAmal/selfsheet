@@ -1,65 +1,166 @@
-import Image from "next/image";
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Header } from './components/Header';
+import { MonthSelector } from './components/MonthSelector';
+import { TrackerGrid } from './components/TrackerGrid';
+import { AnalysisChart } from './components/AnalysisChart';
+import { useUser } from './context/UserContext';
+import { getUserProtocols, getLogsForMonth, bulkInsertLogs } from './actions';
+import { format, getDaysInMonth } from 'date-fns';
+import Link from 'next/link';
+import * as XLSX from 'xlsx';
+import html2canvas from 'html2canvas';
 
 export default function Home() {
+  const { user, isLoading } = useUser();
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [protocols, setProtocols] = useState<any[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  
+  const chartRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchTrackerData = async () => {
+    if (!user) return;
+    const p = await getUserProtocols(user.id);
+    setProtocols(p);
+    
+    const monthPrefix = format(currentDate, 'yyyy-MM');
+    const l = await getLogsForMonth(user.id, monthPrefix);
+    setLogs(l);
+  };
+
+  useEffect(() => {
+    fetchTrackerData();
+  }, [user, currentDate]);
+
+  const handleExportSheet = () => {
+    const daysInMonth = getDaysInMonth(currentDate);
+    const monthPrefix = format(currentDate, 'yyyy-MM');
+    const headerRow = ['Protocol', ...Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString())];
+    
+    const dataRows = protocols.map(p => {
+      const row = [p.name];
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${monthPrefix}-${day.toString().padStart(2, '0')}`;
+        const log = logs.find(l => l.protocolId === p.id && l.date === dateStr);
+        row.push(log?.status ? '✓' : '');
+      }
+      return row;
+    });
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, format(currentDate, 'MMM_yyyy'));
+    XLSX.writeFile(workbook, `tracker_${format(currentDate, 'MMM_yyyy')}.xlsx`);
+  };
+
+  const handleExportPNG = async () => {
+    if (chartRef.current) {
+      const canvas = await html2canvas(chartRef.current);
+      const link = document.createElement('a');
+      link.download = `analysis_${format(currentDate, 'MMM_yyyy')}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!user) return;
+    
+    setIsImporting(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+        const base64 = event.target?.result;
+        try {
+            const res = await fetch('/api/extract-image', {
+                method: 'POST',
+                body: JSON.stringify({ image: base64 })
+            });
+            const data = await res.json();
+            
+            if (data.protocols && confirm(`Parsed ${data.protocols.length} protocols and ${data.logs?.length || 0} logs for ${data.month}. Import?`)) {
+                await bulkInsertLogs(user.id, format(currentDate, 'yyyy-MM'), data.protocols, data.logs || []);
+                fetchTrackerData();
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Failed to parse image');
+        } finally {
+            setIsImporting(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  if (isLoading) {
+    return <div className="loading-screen">Loading...</div>;
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <main className="main-container">
+      <Header />
+      
+      {user ? (
+        <div className="content-wrapper">
+          <div className="controls-row">
+            <MonthSelector 
+              currentDate={currentDate} 
+              onChange={setCurrentDate} 
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <div className="action-buttons" style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={handleExportSheet} className="btn-secondary">Export Sheet</button>
+              <button 
+                onClick={() => fileInputRef.current?.click()} 
+                className="btn-secondary"
+                disabled={isImporting}
+              >
+                {isImporting ? 'Importing...' : 'Import Image'}
+              </button>
+              <input 
+                type="file" 
+                accept="image/*" 
+                ref={fileInputRef} 
+                style={{ display: 'none' }} 
+                onChange={handleFileSelect} 
+              />
+            </div>
+          </div>
+
+          <TrackerGrid 
+            userId={user.id}
+            currentDate={currentDate}
+            protocols={protocols}
+            logs={logs}
+            onUpdate={fetchTrackerData}
+          />
+
+          <div ref={chartRef} style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', right: '1rem', top: '1rem', zIndex: 10 }}>
+              <button onClick={handleExportPNG} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 8px' }}>Export PNG</button>
+            </div>
+            <AnalysisChart 
+              currentDate={currentDate}
+              logs={logs}
+              totalProtocols={protocols.length}
+            />
+          </div>
         </div>
-      </main>
-    </div>
+      ) : (
+        <div className="welcome-screen">
+          <h1>Welcome to SelfSheet</h1>
+          <p>Login or Register to manage your protocols seamlessly.</p>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+             <Link href="/login" className="btn-base" style={{ textDecoration: 'none' }}>Login</Link>
+             <Link href="/register" className="btn-secondary" style={{ textDecoration: 'none' }}>Register</Link>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }
