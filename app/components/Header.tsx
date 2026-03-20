@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from './ThemeProvider';
 import { useUser } from '../context/UserContext';
 import { useRouter } from 'next/navigation';
+import { logoutUser } from '../actions';
 
 export function Header() {
   const { theme, setTheme } = useTheme();
@@ -26,9 +27,9 @@ export function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('tracker_user');
-    window.location.reload();
+  const handleLogout = async () => {
+    await logoutUser();
+    router.push('/login');
   };
 
   const handleToggle = () => {

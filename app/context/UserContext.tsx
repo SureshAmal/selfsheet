@@ -21,25 +21,24 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Basic local state persistence
-    const savedUser = localStorage.getItem('tracker_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    // Read session from server cookie instead of localStorage
+    fetch('/api/session')
+      .then(res => res.json())
+      .then(data => {
+        if (data.user) {
+          setUser(data.user);
+        }
+      })
+      .catch(() => {
+        // Session invalid or not found
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
 
-  const handleSetUser = (newUser: User | null) => {
-    setUser(newUser);
-    if (newUser) {
-      localStorage.setItem('tracker_user', JSON.stringify(newUser));
-    } else {
-      localStorage.removeItem('tracker_user');
-    }
-  };
-
   return (
-    <UserContext.Provider value={{ user, setUser: handleSetUser, isLoading }}>
+    <UserContext.Provider value={{ user, setUser, isLoading }}>
       {children}
     </UserContext.Provider>
   );

@@ -79,6 +79,8 @@ export function AnalysisChart({ currentDate, logs, totalProtocols }: AnalysisCha
               strokeWidth={2}
               dot={{ r: 3, fill: 'var(--bg-primary)', stroke: 'var(--accent-color)', strokeWidth: 2 }}
               activeDot={{ r: 5 }}
+              isAnimationActive={false}
+              connectNulls={false}
             />
           </LineChart>
         </ResponsiveContainer>

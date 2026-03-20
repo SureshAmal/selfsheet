@@ -3,6 +3,7 @@
 import { db } from '@/db';
 import { usersTable, protocolsTable, protocolLogsTable } from '@/db/schema';
 import { eq, and, like, inArray } from 'drizzle-orm';
+import { createSession, deleteSession, getSession } from './lib/session';
 
 // --- USER ACTIONS ---
 export async function registerUser(username: string, passwordHash: string) {
@@ -11,7 +12,9 @@ export async function registerUser(username: string, passwordHash: string) {
     if (existing.length > 0) throw new Error('Username already exists');
     
     const newUser = await db.insert(usersTable).values({ username, password: passwordHash }).returning();
-    return { id: newUser[0].id, username: newUser[0].username, theme: newUser[0].theme };
+    const user = { id: newUser[0].id, username: newUser[0].username, theme: newUser[0].theme };
+    await createSession(user);
+    return user;
   } catch (error) {
     console.error('Error in registerUser:', error);
     throw new Error('Failed to register');
@@ -23,10 +26,12 @@ export async function loginUser(username: string, passwordHash: string) {
     const existing = await db.select().from(usersTable).where(eq(usersTable.username, username));
     if (existing.length === 0) throw new Error('User not found');
     
-    const user = existing[0];
-    if (user.password !== passwordHash) throw new Error('Invalid credentials');
+    const dbUser = existing[0];
+    if (dbUser.password !== passwordHash) throw new Error('Invalid credentials');
     
-    return { id: user.id, username: user.username, theme: user.theme };
+    const user = { id: dbUser.id, username: dbUser.username, theme: dbUser.theme };
+    await createSession(user);
+    return user;
   } catch (error) {
     console.error('Error in loginUser:', error);
     throw new Error('Invalid login');
@@ -39,11 +44,20 @@ export async function updateUserTheme(userId: string, theme: string) {
       .set({ theme })
       .where(eq(usersTable.id, userId))
       .returning();
+    // Sync the session cookie with the new theme
+    const session = await getSession();
+    if (session) {
+      await createSession({ ...session, theme });
+    }
     return updated[0];
   } catch (error) {
     console.error('Error updating theme:', error);
     throw new Error('Failed to update theme');
   }
+}
+
+export async function logoutUser() {
+  await deleteSession();
 }
 
 // --- PROTOCOL ACTIONS ---
