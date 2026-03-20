@@ -13,6 +13,38 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (isOpen) {
+      // Auto-focus logic runs ONLY when modal opens
+      setTimeout(() => {
+        if (modalRef.current) {
+          const autoFocusEl = modalRef.current.querySelector<HTMLElement>('[autofocus]');
+          if (autoFocusEl) {
+            autoFocusEl.focus();
+            return;
+          }
+          // Fallback to first input, then first focusable element
+          const inputEl = modalRef.current.querySelector<HTMLElement>('input');
+          if (inputEl) {
+            inputEl.focus();
+            return;
+          }
+          const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+            'button, [href], select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusable.length > 0) {
+            focusable[0].focus();
+          }
+        }
+      }, 10);
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
       
@@ -21,6 +53,8 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
+        if (focusableElements.length === 0) return;
+        
         const firstElement = focusableElements[0];
         const lastElement = focusableElements[focusableElements.length - 1];
 
@@ -38,29 +72,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
       }
     };
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      // Auto-focus logic
-      setTimeout(() => {
-        if (modalRef.current) {
-          const autoFocusEl = modalRef.current.querySelector<HTMLElement>('[autofocus]');
-          if (autoFocusEl) {
-            autoFocusEl.focus();
-            return;
-          }
-          const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          );
-          if (focusable.length > 0) {
-            focusable[0].focus();
-          }
-        }
-      }, 10);
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'auto';
-    }
-
+    document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
